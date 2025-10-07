@@ -37,12 +37,25 @@ const authController = {
    */
   register: async (req, res) => {
     try {
+      console.log('=== REGISTRATION REQUEST ===');
+      console.log('Request body:', JSON.stringify(req.body, null, 2));
+      
       const errors = validationResult(req);
       if (!errors.isEmpty()) {
+        console.log('Validation errors:', errors.array());
         return res.status(400).json({ errors: errors.array() });
       }
 
-      const { email, password, name, mobileNumber } = req.body;
+      const { email, password, name, mobileNumber, dateOfBirth, gender, location } = req.body;
+      
+      console.log('Extracted fields:', {
+        email,
+        name,
+        mobileNumber,
+        dateOfBirth,
+        gender,
+        location
+      });
 
       // Check if user already exists
       let user = await User.findOne({ email: email.toLowerCase() });
@@ -55,7 +68,10 @@ const authController = {
         email: email.toLowerCase(),
         password,
         name,
-        mobileNumber
+        mobileNumber,
+        dateOfBirth,
+        gender,
+        location
       });
 
       await user.save();

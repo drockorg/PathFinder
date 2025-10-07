@@ -22,6 +22,17 @@ const userSchema = new mongoose.Schema({
   profilePicture: {
     type: String,
   },
+  bio: {
+    type: String,
+    maxlength: 500
+  },
+  dateOfBirth: {
+    type: Date
+  },
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer-not-to-say']
+  },
   role: {
     type: String,
     enum: ['user', 'admin', 'employer'],
@@ -42,6 +53,11 @@ const userSchema = new mongoose.Schema({
       email: { type: Boolean, default: true },
       push: { type: Boolean, default: true },
       sms: { type: Boolean, default: false }
+    },
+    theme: {
+      type: String,
+      enum: ['light', 'dark', 'system'],
+      default: 'system'
     }
   },
   skills: [{

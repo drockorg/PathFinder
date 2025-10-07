@@ -18,7 +18,7 @@ const Header = ({ userRole = 'student', isAuthenticated = true }) => {
     { label: 'Dashboard', path: '/student-dashboard', icon: 'Home', tooltip: 'Your learning hub' },
     { label: 'Learning Paths', path: '/learning-path-builder', icon: 'BookOpen', tooltip: 'Build your skills' },
     { label: 'Job Explorer', path: '/job-explorer', icon: 'Search', tooltip: 'Find opportunities' },
-    { label: 'Profile', path: '/profile', icon: 'User', tooltip: 'Manage account' }
+    { label: 'Profile', path: '/profile-management', icon: 'User', tooltip: 'Manage account' }
   ];
 
   const employerNavigation = [

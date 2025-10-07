@@ -176,13 +176,40 @@ const StudentRegistration = () => {
     setErrors({});
     
     try {
+      // Prepare phone number (remove spaces, ensure +233 prefix)
+      let cleanPhone = formData.phone.replace(/\s/g, '');
+      if (!cleanPhone.startsWith('+233')) {
+        if (cleanPhone.startsWith('0')) {
+          cleanPhone = '+233' + cleanPhone.substring(1);
+        } else if (cleanPhone.startsWith('233')) {
+          cleanPhone = '+' + cleanPhone;
+        } else {
+          cleanPhone = '+233' + cleanPhone;
+        }
+      }
+      
+      console.log('Submitting registration:', {
+        email: formData.email,
+        name: `${formData.firstName} ${formData.lastName}`,
+        mobileNumber: cleanPhone
+      });
+      
       // Call backend API
       const result = await register({
         email: formData.email,
         password: formData.password,
         name: `${formData.firstName} ${formData.lastName}`,
-        mobileNumber: formData.phone.replace(/\s/g, ''),
+        mobileNumber: cleanPhone,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        location: {
+          city: formData.city,
+          region: formData.region,
+          country: 'Ghana'
+        }
       }).unwrap();
+      
+      console.log('Registration successful:', result);
       
       // Store credentials in Redux and localStorage
       dispatch(setCredentials(result));
@@ -191,9 +218,26 @@ const StudentRegistration = () => {
       navigate('/student-dashboard');
     } catch (error) {
       console.error('Registration failed:', error);
-      setErrors({ 
-        submit: error?.data?.message || error?.message || 'Registration failed. Please try again.' 
+      console.error('Error details:', {
+        status: error?.status,
+        data: error?.data,
+        message: error?.data?.message,
+        errors: error?.data?.errors
       });
+      
+      // Handle validation errors from backend
+      if (error?.data?.errors && Array.isArray(error.data.errors)) {
+        console.error('Validation errors:', error.data.errors);
+        const validationErrors = {};
+        error.data.errors.forEach(err => {
+          validationErrors[err.path || err.param] = err.msg;
+        });
+        setErrors(validationErrors);
+      } else {
+        setErrors({ 
+          submit: error?.data?.message || error?.message || 'Registration failed. Please try again.' 
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }

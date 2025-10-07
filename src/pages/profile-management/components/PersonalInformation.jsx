@@ -1,13 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import Icon from '../../../components/AppIcon';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import Select from '../../../components/ui/Select';
+import { useUploadAvatarMutation, useDeleteAvatarMutation, useUpdateProfileMutation } from '../../../store/services/api';
+import { toast } from 'react-hot-toast';
 
 const PersonalInformation = ({ data, onUpdate }) => {
   const [formData, setFormData] = useState(data);
   const [isEditing, setIsEditing] = useState(false);
+  const [uploadAvatar, { isLoading: isUploading }] = useUploadAvatarMutation();
+  const [deleteAvatar, { isLoading: isDeleting }] = useDeleteAvatarMutation();
+  const [updateProfile, { isLoading: isUpdating }] = useUpdateProfileMutation();
+  const fileInputRef = useRef(null);
 
   // Ghana regions for location selection
   const ghanaRegions = [
@@ -22,9 +28,75 @@ const PersonalInformation = ({ data, onUpdate }) => {
     onUpdate?.(updatedData);
   };
 
-  const handleSave = () => {
-    setIsEditing(false);
-    // Additional save logic could be added here
+  const handleSave = async () => {
+    try {
+      await updateProfile({
+        name: `${formData.firstName} ${formData.lastName}`,
+        bio: formData.bio,
+        dateOfBirth: formData.dateOfBirth,
+        gender: formData.gender,
+        location: {
+          city: formData.location,
+          region: formData.region
+        },
+        socialLinks: {
+          linkedin: formData.linkedin,
+          github: formData.github,
+          portfolio: formData.portfolio
+        },
+        mobileNumber: formData.phone
+      }).unwrap();
+      setIsEditing(false);
+      toast.success('Profile updated successfully!');
+    } catch (error) {
+      toast.error('Error updating profile: ' + (error.data?.message || error.message));
+    }
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size must be less than 5MB');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+      const result = await uploadAvatar(formData).unwrap();
+      toast.success('Avatar uploaded successfully!');
+      // Update local state with full URL
+      const avatarUrl = result.avatarUrl.startsWith('http') 
+        ? result.avatarUrl 
+        : `http://localhost:5000${result.avatarUrl}`;
+      handleInputChange('profilePicture', avatarUrl);
+    } catch (error) {
+      toast.error('Error uploading avatar: ' + (error.data?.message || error.message));
+    }
+  };
+
+  const handleAvatarDelete = async () => {
+    try {
+      await deleteAvatar().unwrap();
+      toast.success('Avatar removed successfully!');
+      handleInputChange('profilePicture', null);
+    } catch (error) {
+      toast.error('Error removing avatar: ' + (error.data?.message || error.message));
+    }
   };
 
   return (
@@ -67,11 +139,20 @@ const PersonalInformation = ({ data, onUpdate }) => {
               <motion.button
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="absolute bottom-2 right-2 w-10 h-10 bg-white border-2 border-primary rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors shadow-lg"
+                onClick={handleAvatarClick}
+                disabled={isUploading}
+                className="absolute bottom-2 right-2 w-10 h-10 bg-white border-2 border-primary rounded-full flex items-center justify-center hover:bg-primary hover:text-white transition-colors shadow-lg disabled:opacity-50"
               >
-                <Icon name="Camera" size={18} />
+                <Icon name={isUploading ? "Loader" : "Camera"} size={18} className={isUploading ? "animate-spin" : ""} />
               </motion.button>
             )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
           </div>
           
           <div className="flex-1">
@@ -81,14 +162,16 @@ const PersonalInformation = ({ data, onUpdate }) => {
             </p>
             {isEditing && (
               <div className="flex space-x-3">
-                <Button size="sm" variant="outline">
+                <Button size="sm" variant="outline" onClick={handleAvatarClick} loading={isUploading}>
                   <Icon name="Upload" size={14} className="mr-2" />
                   Upload Photo
                 </Button>
-                <Button size="sm" variant="ghost">
-                  <Icon name="Trash2" size={14} className="mr-2" />
-                  Remove
-                </Button>
+                {formData?.profilePicture && (
+                  <Button size="sm" variant="ghost" onClick={handleAvatarDelete} loading={isDeleting}>
+                    <Icon name="Trash2" size={14} className="mr-2" />
+                    Remove
+                  </Button>
+                )}
               </div>
             )}
           </div>
