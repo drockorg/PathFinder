@@ -48,6 +48,23 @@ State Management:
 ├── Redux Toolkit
 ├── RTK Query (Data Fetching)
 ├── React Context (Local State)
+└── Local Storage (Progress Persistence)
+
+Assessment Features:
+├── Auto-save System
+│   ├── 30-second intervals
+│   └── Progress persistence
+├── PDF Generation
+│   ├── react-pdf/renderer
+│   └── Custom certificate templates
+├── Sharing System
+│   ├── Direct link sharing
+│   ├── Email integration
+│   └── Social media sharing
+└── Analytics Dashboard
+    ├── Real-time progress tracking
+    ├── Performance metrics
+    └── Historical data visualization
 └── Zustand (Alternative)
 
 Routing & Navigation:

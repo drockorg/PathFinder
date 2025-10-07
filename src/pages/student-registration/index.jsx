@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useRegisterMutation } from '../../store/services/api';
+import { setCredentials } from '../../store/slices/authSlice';
 import RegistrationHeader from './components/RegistrationHeader';
 import ProgressIndicator from './components/ProgressIndicator';
 import PersonalInfoStep from './components/PersonalInfoStep';
@@ -11,10 +14,12 @@ import NavigationButtons from './components/NavigationButtons';
 
 const StudentRegistration = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const [register, { isLoading: isRegistering }] = useRegisterMutation();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-  
+
   const totalSteps = 4;
 
   const [formData, setFormData] = useState({
@@ -23,6 +28,8 @@ const StudentRegistration = () => {
     lastName: '',
     email: '',
     phone: '',
+    password: '',
+    confirmPassword: '',
     dateOfBirth: '',
     region: '',
     city: '',
@@ -64,6 +71,18 @@ const StudentRegistration = () => {
       stepErrors.phone = 'Phone number is required';
     } else if (!/^\+233\s?\d{2}\s?\d{3}\s?\d{4}$/?.test(formData?.phone?.replace(/\s/g, ''))) {
       stepErrors.phone = 'Please enter a valid Ghana phone number (+233 XX XXX XXXX)';
+    }
+    if (!formData?.password?.trim()) {
+      stepErrors.password = 'Password is required';
+    } else if (formData?.password?.length < 8) {
+      stepErrors.password = 'Password must be at least 8 characters';
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])/.test(formData?.password)) {
+      stepErrors.password = 'Password must include uppercase, lowercase, number, and special character';
+    }
+    if (!formData?.confirmPassword?.trim()) {
+      stepErrors.confirmPassword = 'Please confirm your password';
+    } else if (formData?.password !== formData?.confirmPassword) {
+      stepErrors.confirmPassword = 'Passwords do not match';
     }
     if (!formData?.dateOfBirth) stepErrors.dateOfBirth = 'Date of birth is required';
     if (!formData?.region) stepErrors.region = 'Region is required';
@@ -135,12 +154,13 @@ const StudentRegistration = () => {
     }
     
     setErrors(stepErrors);
-    return Object.keys(stepErrors)?.length === 0;
+    return Object.keys(stepErrors).length === 0;
   };
 
   const handleNext = () => {
     if (validateCurrentStep()) {
       setCurrentStep(prev => Math.min(prev + 1, totalSteps));
+      setErrors({});
     }
   };
 
@@ -153,19 +173,27 @@ const StudentRegistration = () => {
     if (!validateCurrentStep()) return;
     
     setIsSubmitting(true);
+    setErrors({});
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Call backend API
+      const result = await register({
+        email: formData.email,
+        password: formData.password,
+        name: `${formData.firstName} ${formData.lastName}`,
+        mobileNumber: formData.phone.replace(/\s/g, ''),
+      }).unwrap();
       
-      // Mock successful registration
-      console.log('Registration data:', formData);
+      // Store credentials in Redux and localStorage
+      dispatch(setCredentials(result));
       
       // Navigate to student dashboard
       navigate('/student-dashboard');
     } catch (error) {
       console.error('Registration failed:', error);
-      setErrors({ submit: 'Registration failed. Please try again.' });
+      setErrors({ 
+        submit: error?.data?.message || error?.message || 'Registration failed. Please try again.' 
+      });
     } finally {
       setIsSubmitting(false);
     }

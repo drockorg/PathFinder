@@ -19,6 +19,11 @@ const AssessmentCategories = ({ categories, onStartAssessment }) => {
     }
   };
 
+  const handleStartAssessment = (assessmentId) => {
+    onStartAssessment(assessmentId);
+    setSelectedCategory(null);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -27,157 +32,139 @@ const AssessmentCategories = ({ categories, onStartAssessment }) => {
           Choose a category to begin your skills evaluation
         </div>
       </div>
+
       {/* Categories Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {categories?.map((category, index) => (
+        {categories?.map((category) => (
           <motion.div
-            key={category?.id}
+            key={category.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-            className="group"
+            whileHover={{ scale: 1.02 }}
+            className={`group relative bg-card rounded-xl border border-border p-6 cursor-pointer transition-shadow hover:shadow-lg ${
+              selectedCategory?.id === category.id ? 'ring-2 ring-primary' : ''
+            }`}
+            onClick={() => setSelectedCategory(category)}
           >
-            <div 
-              className="bg-card rounded-xl border border-border p-6 hover:shadow-lg transition-all duration-300 cursor-pointer h-full"
-              onClick={() => setSelectedCategory(selectedCategory === category?.id ? null : category?.id)}
-            >
-              {/* Category Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-14 h-14 ${category?.color} rounded-xl flex items-center justify-center text-white`}>
-                  <Icon name={category?.icon} size={28} />
+            {/* Category Header */}
+            <div className="flex items-start justify-between mb-4">
+              <div className={`${category.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
+                <Icon name={category.icon} className="w-6 h-6 text-white" />
+              </div>
+              <div className={`px-3 py-1 rounded-full text-sm font-medium ${getDifficultyColor(category.difficulty)}`}>
+                {category.difficulty}
+              </div>
+            </div>
+
+            {/* Category Content */}
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold">{category.title}</h3>
+              <p className="text-muted-foreground text-sm">{category.description}</p>
+            </div>
+
+            {/* Category Stats */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-muted-foreground">Time</div>
+                  <div className="font-medium">{category.estimatedTime}</div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(category?.difficulty)}`}>
-                    {category?.difficulty}
-                  </span>
-                  <Icon 
-                    name={selectedCategory === category?.id ? "ChevronUp" : "ChevronDown"} 
-                    size={16} 
-                    className="text-muted-foreground group-hover:text-primary transition-colors" 
-                  />
+                <div>
+                  <div className="text-sm text-muted-foreground">Questions</div>
+                  <div className="font-medium">{category.totalQuestions}</div>
                 </div>
               </div>
+            </div>
 
-              {/* Category Info */}
-              <div className="mb-4">
-                <h3 className="text-xl font-semibold text-foreground mb-2">{category?.title}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{category?.description}</p>
-                
-                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    <Icon name="Clock" size={14} />
-                    <span>{category?.estimatedTime}</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Icon name="FileText" size={14} />
-                    <span>{category?.totalQuestions} questions</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Skill Areas */}
-              <div className="mb-4">
-                <div className="text-xs font-medium text-muted-foreground mb-2">Skill Areas:</div>
-                <div className="flex flex-wrap gap-1">
-                  {category?.skillAreas?.slice(0, 3)?.map((skill, idx) => (
-                    <span 
-                      key={idx}
-                      className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded-md"
-                    >
-                      {skill}
-                    </span>
-                  ))}
-                  {category?.skillAreas?.length > 3 && (
-                    <span className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded-md">
-                      +{category?.skillAreas?.length - 3} more
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Expanded Content */}
-              <AnimatePresence>
-                {selectedCategory === category?.id && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.3 }}
-                    className="border-t border-border pt-4 mt-4"
-                  >
-                    <div className="space-y-3">
-                      <h4 className="font-medium text-foreground">Available Assessments:</h4>
-                      {category?.assessments?.map((assessment, idx) => (
-                        <motion.div
-                          key={assessment?.id}
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.3, delay: idx * 0.1 }}
-                          className="bg-muted/50 rounded-lg p-3"
-                        >
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <div className="font-medium text-foreground">{assessment?.title}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {assessment?.questions} questions • {assessment?.duration}
-                              </div>
-                            </div>
-                            <Button
-                              size="sm"
-                              onClick={(e) => {
-                                e?.stopPropagation();
-                                onStartAssessment?.(assessment);
-                              }}
-                              className="ml-2"
-                            >
-                              Start
-                            </Button>
-                          </div>
-                          <div className="flex flex-wrap gap-1">
-                            {assessment?.skills?.map((skill, skillIdx) => (
-                              <span 
-                                key={skillIdx}
-                                className="px-1.5 py-0.5 text-xs bg-background text-muted-foreground rounded"
-                              >
-                                {skill}
-                              </span>
-                            ))}
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+            {/* Skills List */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {category.skillAreas?.slice(0, 3).map((skill) => (
+                <span
+                  key={skill}
+                  className="px-2 py-1 bg-muted rounded-full text-xs text-muted-foreground"
+                >
+                  {skill}
+                </span>
+              ))}
+              {category.skillAreas?.length > 3 && (
+                <span className="px-2 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                  +{category.skillAreas.length - 3} more
+                </span>
+              )}
             </div>
           </motion.div>
         ))}
       </div>
-      {/* Quick Start Section */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.5 }}
-        className="bg-gradient-to-r from-blue-50 to-purple-50 border border-blue-200 rounded-xl p-6"
-      >
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Icon name="Zap" size={24} className="text-blue-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-foreground">Quick Assessment</h3>
-              <p className="text-sm text-muted-foreground">
-                Not sure where to start? Take our 5-minute quick assessment to get personalized recommendations.
-              </p>
-            </div>
-          </div>
-          <Button variant="outline" className="shrink-0">
-            <Icon name="Play" size={16} className="mr-2" />
-            Quick Start
-          </Button>
-        </div>
-      </motion.div>
+
+      {/* Assessment Details Modal */}
+      <AnimatePresence>
+        {selectedCategory && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50"
+            onClick={() => setSelectedCategory(null)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl bg-card rounded-xl shadow-xl border border-border p-6"
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center space-x-4">
+                  <div className={`${selectedCategory.color} w-12 h-12 rounded-lg flex items-center justify-center`}>
+                    <Icon name={selectedCategory.icon} className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-semibold">{selectedCategory.title}</h3>
+                    <p className="text-sm text-muted-foreground">{selectedCategory.description}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Icon name="X" className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Available Assessments */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Available Assessments</h4>
+                <div className="space-y-3">
+                  {selectedCategory.assessments?.map((assessment) => (
+                    <div
+                      key={assessment.id}
+                      className="flex items-center justify-between p-4 bg-muted rounded-lg"
+                    >
+                      <div>
+                        <h5 className="font-medium mb-1">{assessment.title}</h5>
+                        <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+                          <span className="flex items-center">
+                            <Icon name="Clock" className="w-4 h-4 mr-1" />
+                            {assessment.duration}
+                          </span>
+                          <span className="flex items-center">
+                            <Icon name="HelpCircle" className="w-4 h-4 mr-1" />
+                            {assessment.questions} questions
+                          </span>
+                        </div>
+                      </div>
+                      <Button onClick={() => handleStartAssessment(assessment.id)}>
+                        Start Assessment
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

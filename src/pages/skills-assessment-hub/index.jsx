@@ -1,5 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useEffect, useCallback, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { useSaveProgressMutation, useGetProgressQuery } from '../../store/services/assessmentApi';
+import DetailedHistory from './components/DetailedHistory';
+import ShareAssessment from './components/ShareAssessment';
+import { useReducedMotion, useMediaQuery } from '../../hooks/useMediaQueries';
+import useKeyboardShortcuts from '../../hooks/useKeyboardShortcuts';
+import ErrorBoundary from './components/ErrorBoundary';
+import ShortcutsHelp from './components/ShortcutsHelp';
 import Header from '../../components/ui/Header';
 import NavigationBreadcrumbs from '../../components/ui/NavigationBreadcrumbs';
 import AssessmentOverview from './components/AssessmentOverview';
@@ -7,350 +17,326 @@ import AssessmentCategories from './components/AssessmentCategories';
 import ActiveAssessment from './components/ActiveAssessment';
 import AssessmentHistory from './components/AssessmentHistory';
 import SkillRecommendations from './components/SkillRecommendations';
+import AssessmentResults from './components/AssessmentResults';
 import Icon from '../../components/AppIcon';
 import Button from '../../components/ui/Button';
-
-
+import { 
+  useGetAssessmentCategoriesQuery,
+  useGetAssessmentHistoryQuery,
+  useGetSkillRecommendationsQuery,
+  useStartAssessmentMutation
+} from '../../store/services/api';
+import { 
+  setCategories,
+  startAssessment as startAssessmentAction,
+  completeAssessment,
+  setSubmitting,
+  resetAssessment
+} from '../../store/slices/assessmentSlice';
 
 const SkillsAssessmentHub = () => {
-  const [isLoading, setIsLoading] = useState(true);
-  const [activeView, setActiveView] = useState('overview'); // overview, assessment, results
-  const [currentAssessment, setCurrentAssessment] = useState(null);
-  const [assessmentData, setAssessmentData] = useState(null);
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const [showShare, setShowShare] = useState(false);
+  const [saveProgress] = useSaveProgressMutation();
+  
+  // Get current assessment progress and state
+  const currentAssessment = useSelector((state) => state.assessment.activeAssessment);
+  const completedAssessment = useSelector((state) => state.assessment.completedAssessment);
+  
+  const { data: savedProgress } = useGetProgressQuery(currentAssessment?.id, {
+    skip: !currentAssessment?.id,
+  });
+  const prefersReducedMotion = useReducedMotion();
+  const isMobile = useMediaQuery('(max-width: 640px)');
+  const isTablet = useMediaQuery('(min-width: 641px) and (max-width: 1024px)');
 
-  // Mock assessment categories data
-  const assessmentCategories = [
-    {
-      id: 'technical-skills',
-      title: 'Technical Skills',
-      description: 'Evaluate programming, web development, and digital literacy skills',
-      icon: 'Code',
-      color: 'bg-blue-500',
-      estimatedTime: '15-20 mins',
-      difficulty: 'Intermediate',
-      totalQuestions: 25,
-      skillAreas: ['Programming', 'Web Development', 'Database', 'Tools & Frameworks'],
-      assessments: [
-        {
-          id: 'frontend-dev',
-          title: 'Frontend Development',
-          questions: 20,
-          duration: '15 mins',
-          skills: ['HTML', 'CSS', 'JavaScript', 'React']
-        },
-        {
-          id: 'backend-dev',
-          title: 'Backend Development',
-          questions: 18,
-          duration: '12 mins',
-          skills: ['Node.js', 'Python', 'Database', 'API']
-        },
-        {
-          id: 'data-analysis',
-          title: 'Data Analysis',
-          questions: 22,
-          duration: '18 mins',
-          skills: ['Python', 'Excel', 'Statistics', 'Visualization']
-        }
-      ]
+  useKeyboardShortcuts({
+    'Escape': () => {
+      if (activeView === 'assessment' || activeView === 'results') {
+        handleBackToOverview();
+      }
     },
-    {
-      id: 'soft-skills',
-      title: 'Soft Skills',
-      description: 'Assess communication, teamwork, and leadership capabilities',
-      icon: 'Users',
-      color: 'bg-green-500',
-      estimatedTime: '10-15 mins',
-      difficulty: 'Beginner',
-      totalQuestions: 20,
-      skillAreas: ['Communication', 'Leadership', 'Problem Solving', 'Time Management'],
-      assessments: [
-        {
-          id: 'communication',
-          title: 'Communication Skills',
-          questions: 15,
-          duration: '10 mins',
-          skills: ['Written Communication', 'Verbal Skills', 'Presentation', 'Active Listening']
-        },
-        {
-          id: 'leadership',
-          title: 'Leadership & Management',
-          questions: 18,
-          duration: '12 mins',
-          skills: ['Team Leadership', 'Decision Making', 'Conflict Resolution', 'Motivation']
-        }
-      ]
+    'ArrowLeft': () => {
+      if (activeView === 'assessment') {
+        dispatch({ type: 'assessment/previousQuestion' });
+      }
     },
-    {
-      id: 'industry-specific',
-      title: 'Industry-Specific',
-      description: 'Specialized skills relevant to Ghana\'s key industries',
-      icon: 'Building2',
-      color: 'bg-purple-500',
-      estimatedTime: '12-18 mins',
-      difficulty: 'Advanced',
-      totalQuestions: 23,
-      skillAreas: ['Agriculture', 'Mining', 'Banking', 'Healthcare', 'Education'],
-      assessments: [
-        {
-          id: 'fintech',
-          title: 'Financial Technology',
-          questions: 16,
-          duration: '14 mins',
-          skills: ['Mobile Money', 'Digital Banking', 'Risk Management', 'Compliance']
-        },
-        {
-          id: 'agritech',
-          title: 'Agricultural Technology',
-          questions: 14,
-          duration: '12 mins',
-          skills: ['Smart Farming', 'Supply Chain', 'Market Analysis', 'Sustainability']
-        },
-        {
-          id: 'digital-marketing',
-          title: 'Digital Marketing',
-          questions: 20,
-          duration: '16 mins',
-          skills: ['Social Media', 'SEO', 'Content Marketing', 'Analytics']
-        }
-      ]
-    }
-  ];
+    'ArrowRight': () => {
+      if (activeView === 'assessment') {
+        dispatch({ type: 'assessment/nextQuestion' });
+      }
+    },
+    'h+alt': () => navigate('/'),
+    'r+alt': () => window.location.reload(),
+    '?': () => setShowShortcuts(prev => !prev),
+  });
+  
+  const activeView = useSelector((state) => {
+    if (state.assessment.completedAssessment) return 'results';
+    if (state.assessment.activeAssessment) return 'assessment';
+    return 'overview';
+  });
+  
+  const { 
+    data: categories,
+    isLoading: categoriesLoading,
+    error: categoriesError 
+  } = useGetAssessmentCategoriesQuery();
+  
+  const {
+    data: history,
+    isLoading: historyLoading
+  } = useGetAssessmentHistoryQuery();
+  
+  const {
+    data: recommendations,
+    isLoading: recommendationsLoading
+  } = useGetSkillRecommendationsQuery();
 
-  // Mock assessment history data
-  const assessmentHistory = [
-    {
-      id: 'hist-1',
-      assessmentId: 'frontend-dev',
-      title: 'Frontend Development',
-      category: 'Technical Skills',
-      completedDate: '2025-10-04',
-      score: 85,
-      totalQuestions: 20,
-      correctAnswers: 17,
-      timeSpent: '14 mins',
-      skillBreakdown: {
-        'HTML': 90,
-        'CSS': 88,
-        'JavaScript': 80,
-        'React': 82
-      },
-      recommendedPaths: ['Advanced React Development', 'Full Stack Web Development']
-    },
-    {
-      id: 'hist-2',
-      assessmentId: 'communication',
-      title: 'Communication Skills',
-      category: 'Soft Skills',
-      completedDate: '2025-10-02',
-      score: 92,
-      totalQuestions: 15,
-      correctAnswers: 14,
-      timeSpent: '9 mins',
-      skillBreakdown: {
-        'Written Communication': 95,
-        'Verbal Skills': 88,
-        'Presentation': 90,
-        'Active Listening': 96
-      },
-      recommendedPaths: ['Leadership Development', 'Public Speaking Mastery']
-    },
-    {
-      id: 'hist-3',
-      assessmentId: 'digital-marketing',
-      title: 'Digital Marketing',
-      category: 'Industry-Specific',
-      completedDate: '2025-09-28',
-      score: 78,
-      totalQuestions: 20,
-      correctAnswers: 16,
-      timeSpent: '15 mins',
-      skillBreakdown: {
-        'Social Media': 85,
-        'SEO': 70,
-        'Content Marketing': 80,
-        'Analytics': 75
-      },
-      recommendedPaths: ['Advanced SEO Strategies', 'Social Media Marketing']
-    }
-  ];
+  const [startAssessment] = useStartAssessmentMutation();
 
-  // Mock skill recommendations based on assessments
-  const skillRecommendations = [
-    {
-      id: 'rec-1',
-      type: 'improvement',
-      title: 'Strengthen Your SEO Skills',
-      description: 'Based on your digital marketing assessment, improving SEO could boost your score by 15%',
-      currentLevel: 70,
-      targetLevel: 85,
-      learningPaths: ['SEO Fundamentals', 'Advanced SEO Techniques'],
-      estimatedTime: '3 weeks',
-      priority: 'high'
-    },
-    {
-      id: 'rec-2',
-      type: 'new_skill',
-      title: 'Explore Backend Development',
-      description: 'Your frontend skills are strong. Adding backend knowledge could open full-stack opportunities',
-      currentLevel: 0,
-      targetLevel: 75,
-      learningPaths: ['Node.js Basics', 'Database Fundamentals'],
-      estimatedTime: '6 weeks',
-      priority: 'medium'
-    },
-    {
-      id: 'rec-3',
-      type: 'certification',
-      title: 'Get Certified in React',
-      description: 'Your React skills are excellent. A certification would validate your expertise to employers',
-      currentLevel: 82,
-      targetLevel: 90,
-      learningPaths: ['React Certification Prep'],
-      estimatedTime: '2 weeks',
-      priority: 'low'
-    }
-  ];
-
-  const userStats = {
-    totalAssessments: 8,
-    averageScore: 85,
-    strongestSkill: 'Communication',
-    improvementArea: 'SEO',
-    assessmentStreak: 5,
-    lastAssessment: '4 days ago'
-  };
+  const isSubmitting = useSelector((state) => state.assessment.currentProgress.isSubmitting);
+  const isLoading = categoriesLoading || historyLoading || recommendationsLoading || isSubmitting;
 
   useEffect(() => {
-    // Simulate loading
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 1000);
+    if (categories) {
+      dispatch(setCategories(categories));
+    }
+  }, [categories, dispatch]);
 
-    return () => clearTimeout(timer);
-  }, []);
+  // Auto-save progress
+  useEffect(() => {
+    if (currentAssessment && currentAssessment.id) {
+      const autoSaveInterval = setInterval(async () => {
+        try {
+          await saveProgress({
+            assessmentId: currentAssessment.id,
+            progress: currentAssessment.currentProgress
+          }).unwrap();
+        } catch (error) {
+          console.error('Failed to auto-save:', error);
+        }
+      }, 30000); // Auto-save every 30 seconds
 
-  const handleStartAssessment = (assessment) => {
-    setCurrentAssessment(assessment);
-    setActiveView('assessment');
+      return () => clearInterval(autoSaveInterval);
+    }
+  }, [currentAssessment, saveProgress]);
+
+  const handleStartAssessment = async (categoryId) => {
+    const loadingToast = toast.loading('Starting assessment...');
+    try {
+      const result = await startAssessment(categoryId).unwrap();
+      dispatch(startAssessmentAction(result));
+      toast.success('Assessment started successfully', { id: loadingToast });
+    } catch (error) {
+      console.error('Failed to start assessment:', error);
+      toast.error(error.data?.message || 'Failed to start assessment', { id: loadingToast });
+    }
   };
 
-  const handleAssessmentComplete = (results) => {
-    setAssessmentData(results);
-    setActiveView('results');
-    // Add to history
-    const newHistoryItem = {
-      id: `hist-${Date.now()}`,
-      ...results,
-      completedDate: new Date()?.toISOString()?.split('T')?.[0]
-    };
-    // In a real app, this would be saved to a database
+  const handleAssessmentComplete = async (results) => {
+    const loadingToast = toast.loading('Submitting assessment...');
+    try {
+      dispatch(setSubmitting(true));
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      dispatch(completeAssessment(results));
+      toast.success('Assessment completed successfully!', { id: loadingToast });
+    } catch (error) {
+      console.error('Failed to complete assessment:', error);
+      toast.error(error.data?.message || 'Failed to complete assessment', { id: loadingToast });
+    } finally {
+      dispatch(setSubmitting(false));
+    }
   };
 
   const handleBackToOverview = () => {
-    setActiveView('overview');
-    setCurrentAssessment(null);
-    setAssessmentData(null);
+    dispatch(resetAssessment());
+    navigate('/skills-assessment-hub');
   };
 
-  if (isLoading) {
+  if (categoriesError) {
     return (
-      <div className="min-h-screen bg-background">
-        <Header userRole="student" isAuthenticated={true} />
-        <div className="pt-16">
-          <div className="container mx-auto px-4 py-8">
-            <div className="animate-pulse space-y-6">
-              <div className="h-8 bg-muted rounded w-1/3"></div>
-              <div className="h-48 bg-muted rounded-xl"></div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(6)]?.map((_, i) => (
-                  <div key={i} className="h-64 bg-muted rounded-xl"></div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="p-8 text-center">
+        <Icon name="AlertTriangle" className="w-12 h-12 mx-auto text-red-500 mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Error Loading Assessments</h3>
+        <p className="text-muted-foreground mb-4">{categoriesError.message}</p>
+        <Button 
+          onClick={() => window.location.reload()}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <>
+              <Icon name="Loader2" className="w-4 h-4 mr-2 animate-spin" />
+              Loading...
+            </>
+          ) : 'Try Again'}
+        </Button>
       </div>
     );
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <Header userRole="student" isAuthenticated={true} />
-      <div className="pt-16">
-        <div className="container mx-auto px-4 py-8">
-          <NavigationBreadcrumbs 
-            userRole="student" 
-            customPath={[
-              { name: 'Dashboard', href: '/student-dashboard' },
-              { name: 'Skills Assessment Hub', href: '/skills-assessment-hub' }
-            ]}
-          />
-          
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="space-y-8"
+          role="status"
+          aria-busy="true"
+          aria-label="Loading assessment hub content"
+        >
+          <div className="sr-only">Loading assessment hub content...</div>
+          {/* Skeleton loaders with improved animation */}
+          <div className="space-y-4" aria-hidden="true">
+            <div className="h-8 w-1/3 bg-card animate-pulse rounded-lg" />
+            <div className="h-48 bg-card animate-pulse rounded-xl" />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="space-y-4 p-6 bg-card rounded-xl">
+                <div className="h-6 w-2/3 bg-muted animate-pulse rounded-lg" />
+                <div className="h-24 bg-muted animate-pulse rounded-lg" />
+                <div className="h-8 w-1/2 bg-muted animate-pulse rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </motion.div>
+      );
+    }
+
+    return (
+      <AnimatePresence mode="wait">
+import useFocusTrap from '../../hooks/useFocusTrap';
+
+// Add this near your other hooks at the top of the component
+const assessmentRef = useFocusTrap(activeView === 'assessment');
+
+// In the render section:
+        {activeView === 'assessment' && (
           <motion.div
+            ref={assessmentRef}
+            key="assessment"
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={prefersReducedMotion 
+              ? { duration: 0.1 } 
+              : { type: 'spring', stiffness: 260, damping: 20 }
+            }
+            className={`${isMobile ? 'px-2' : 'px-4'}`}
+            role="region"
+            aria-label="Active Assessment"
+          >
+            <ActiveAssessment
+              assessment={currentAssessment}
+              onComplete={handleAssessmentComplete}
+              onBack={handleBackToOverview}
+            />
+          </motion.div>
+        )}
+
+// Add this near your other hooks at the top of the component
+const resultsRef = useFocusTrap(activeView === 'results');
+
+// In the render section:
+        {activeView === 'results' && completedAssessment && (
+          <motion.div
+            ref={resultsRef}
+            key="results"
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            role="region"
+            aria-label="Assessment Results"
+          >
+            <AssessmentResults
+              results={completedAssessment}
+              onBackToOverview={handleBackToOverview}
+            />
+          </motion.div>
+        )}
+
+        {activeView === 'overview' && (
+          <motion.div
+            key="overview"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
+            exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
-            {activeView === 'overview' && (
-              <>
-                {/* Assessment Overview */}
-                <AssessmentOverview userStats={userStats} />
-
-                {/* Main Content Grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  {/* Left Column - Assessment Categories */}
-                  <div className="lg:col-span-2 space-y-8">
-                    <AssessmentCategories 
-                      categories={assessmentCategories}
-                      onStartAssessment={handleStartAssessment}
-                    />
-                  </div>
-
-                  {/* Right Column - Recommendations */}
-                  <div className="space-y-8">
-                    <SkillRecommendations recommendations={skillRecommendations} />
-                  </div>
-                </div>
-
-                {/* Assessment History */}
-                <AssessmentHistory history={assessmentHistory} />
-              </>
-            )}
-
-            {activeView === 'assessment' && (
-              <ActiveAssessment 
-                assessment={currentAssessment}
-                onComplete={handleAssessmentComplete}
-                onBack={handleBackToOverview}
-              />
-            )}
-
-            {activeView === 'results' && assessmentData && (
-              <div className="space-y-8">
-                {/* Results would be displayed here */}
-                <motion.div 
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.5 }}
-                  className="bg-card rounded-xl border border-border p-8 text-center"
-                >
-                  <div className="w-20 h-20 bg-success/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <Icon name="CheckCircle" size={40} className="text-success" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-foreground mb-4">Assessment Complete!</h2>
-                  <p className="text-muted-foreground mb-6">Your results have been saved and recommendations updated.</p>
-                  <Button onClick={handleBackToOverview}>
-                    Return to Assessment Hub
-                  </Button>
-                </motion.div>
-              </div>
-            )}
+            <AssessmentOverview stats={history} />
+            <AssessmentCategories
+              categories={categories}
+              onStartAssessment={handleStartAssessment}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AssessmentHistory history={history} />
+              <SkillRecommendations recommendations={recommendations} />
+            </div>
           </motion.div>
-        </div>
+        )}
+      </AnimatePresence>
+    );
+  };
+
+  const [showShortcuts, setShowShortcuts] = React.useState(false);
+
+  const handleKeyNavigation = useCallback((e) => {
+    if (e.key === 'Escape') {
+      if (showShortcuts) {
+        setShowShortcuts(false);
+      } else if (activeView === 'assessment' || activeView === 'results') {
+        handleBackToOverview();
+      }
+    }
+  }, [activeView, handleBackToOverview, showShortcuts]);
+
+  useEffect(() => {
+    window.addEventListener('keydown', handleKeyNavigation);
+    return () => window.removeEventListener('keydown', handleKeyNavigation);
+  }, [handleKeyNavigation]);
+
+  return (
+    <ErrorBoundary onReset={() => dispatch(resetAssessment())}>
+      <motion.main
+        initial={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
+        animate={prefersReducedMotion ? { opacity: 1 } : { opacity: 1, y: 0 }}
+        exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, y: 20 }}
+        transition={{ duration: prefersReducedMotion ? 0.1 : 0.3 }}
+        className={`container mx-auto ${isMobile ? 'px-2' : 'px-4'} py-8`}
+        role="main"
+        aria-live="polite"
+      >
+      <div className="mb-8">
+        <NavigationBreadcrumbs
+          items={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Skills Assessment Hub', href: '/skills-assessment-hub' },
+          ]}
+        />
+        <Header
+          title="Skills Assessment Hub"
+          description="Evaluate your skills, track progress, and get personalized recommendations"
+          icon="Brain"
+        />
       </div>
-    </div>
+      {renderContent()}
+      <ShortcutsHelp isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <AnimatePresence>
+        {showShare && currentAssessment && (
+          <ShareAssessment
+            assessment={currentAssessment}
+            onClose={() => setShowShare(false)}
+          />
+        )}
+      </AnimatePresence>
+    </motion.main>
+    </ErrorBoundary>
   );
 };
 

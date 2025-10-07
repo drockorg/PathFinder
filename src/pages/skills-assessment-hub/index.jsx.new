@@ -1,0 +1,145 @@
+import React, { useEffect } from 'react';
+import { motion } from 'framer-motion';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
+import Header from '../../components/ui/Header';
+import NavigationBreadcrumbs from '../../components/ui/NavigationBreadcrumbs';
+import AssessmentOverview from './components/AssessmentOverview';
+import AssessmentCategories from './components/AssessmentCategories';
+import ActiveAssessment from './components/ActiveAssessment';
+import AssessmentHistory from './components/AssessmentHistory';
+import SkillRecommendations from './components/SkillRecommendations';
+import Icon from '../../components/AppIcon';
+import Button from '../../components/ui/Button';
+import { 
+  useGetAssessmentCategoriesQuery,
+  useGetAssessmentHistoryQuery,
+  useGetSkillRecommendationsQuery,
+  useStartAssessmentMutation
+} from '../../store/services/api';
+import { 
+  setCategories,
+  startAssessment as startAssessmentAction,
+  completeAssessment
+} from '../../store/slices/assessmentSlice';
+
+const SkillsAssessmentHub = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  
+  const activeView = useSelector((state) => state.assessment.activeAssessment ? 'assessment' : 'overview');
+  const currentAssessment = useSelector((state) => state.assessment.activeAssessment);
+  
+  const { 
+    data: categories,
+    isLoading: categoriesLoading,
+    error: categoriesError 
+  } = useGetAssessmentCategoriesQuery();
+  
+  const {
+    data: history,
+    isLoading: historyLoading
+  } = useGetAssessmentHistoryQuery();
+  
+  const {
+    data: recommendations,
+    isLoading: recommendationsLoading
+  } = useGetSkillRecommendationsQuery();
+
+  const [startAssessment] = useStartAssessmentMutation();
+
+  const isLoading = categoriesLoading || historyLoading || recommendationsLoading;
+
+  useEffect(() => {
+    if (categories) {
+      dispatch(setCategories(categories));
+    }
+  }, [categories, dispatch]);
+
+  const handleStartAssessment = async (categoryId) => {
+    try {
+      const result = await startAssessment(categoryId).unwrap();
+      dispatch(startAssessmentAction(result));
+    } catch (error) {
+      console.error('Failed to start assessment:', error);
+    }
+  };
+
+  const handleAssessmentComplete = async (results) => {
+    dispatch(completeAssessment(results));
+  };
+
+  if (categoriesError) {
+    return (
+      <div className="p-8 text-center">
+        <Icon name="AlertTriangle" className="w-12 h-12 mx-auto text-red-500 mb-4" />
+        <h3 className="text-xl font-semibold mb-2">Error Loading Assessments</h3>
+        <p className="text-muted-foreground mb-4">{categoriesError.message}</p>
+        <Button onClick={() => window.location.reload()}>
+          Try Again
+        </Button>
+      </div>
+    );
+  }
+
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+        </div>
+      );
+    }
+
+    switch (activeView) {
+      case 'assessment':
+        return (
+          <ActiveAssessment
+            assessment={currentAssessment}
+            onComplete={handleAssessmentComplete}
+            onBack={() => navigate('/skills-assessment-hub')}
+          />
+        );
+      default:
+        return (
+          <div className="space-y-8">
+            <AssessmentOverview stats={history} />
+            <AssessmentCategories
+              categories={categories}
+              onStartAssessment={handleStartAssessment}
+            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AssessmentHistory history={history} />
+              <SkillRecommendations recommendations={recommendations} />
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 20 }}
+      className="container mx-auto px-4 py-8"
+    >
+      <div className="mb-8">
+        <NavigationBreadcrumbs
+          items={[
+            { label: 'Dashboard', href: '/dashboard' },
+            { label: 'Skills Assessment Hub', href: '/skills-assessment-hub' },
+          ]}
+        />
+        <Header
+          title="Skills Assessment Hub"
+          description="Evaluate your skills, track progress, and get personalized recommendations"
+          icon="Brain"
+        />
+      </div>
+      {renderContent()}
+    </motion.div>
+  );
+};
+
+export default SkillsAssessmentHub;

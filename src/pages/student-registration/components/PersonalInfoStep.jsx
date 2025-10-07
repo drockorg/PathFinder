@@ -70,6 +70,30 @@ const PersonalInfoStep = ({ formData, setFormData, errors }) => {
         description="Ghana mobile number format"
         required
       />
+      
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Input
+          label="Password"
+          type="password"
+          placeholder="Create a password"
+          value={formData?.password}
+          onChange={(e) => handleInputChange('password', e?.target?.value)}
+          error={errors?.password}
+          description="Min 8 chars, uppercase, lowercase, number, special char"
+          required
+        />
+
+        <Input
+          label="Confirm Password"
+          type="password"
+          placeholder="Confirm your password"
+          value={formData?.confirmPassword}
+          onChange={(e) => handleInputChange('confirmPassword', e?.target?.value)}
+          error={errors?.confirmPassword}
+          required
+        />
+      </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Input
           label="Date of Birth"
@@ -90,6 +114,7 @@ const PersonalInfoStep = ({ formData, setFormData, errors }) => {
           required
         />
       </div>
+      
       <Input
         label="City/Town"
         type="text"

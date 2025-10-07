@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { useLoginMutation } from '../../../store/services/api';
+import { setCredentials, selectIsAuthenticated, selectAuthError } from '../../../store/slices/authSlice';
 import Button from '../../../components/ui/Button';
 import Input from '../../../components/ui/Input';
 import { Checkbox } from '../../../components/ui/Checkbox';
@@ -7,13 +10,18 @@ import Icon from '../../../components/AppIcon';
 
 const LoginForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const dispatch = useDispatch();
+  const [login, { isLoading }] = useLoginMutation();
+  const isAuthenticated = useSelector(selectIsAuthenticated);
+  const authError = useSelector(selectAuthError);
+  
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     rememberMe: false
   });
   const [errors, setErrors] = useState({});
-  const [isLoading, setIsLoading] = useState(false);
 
   // Mock credentials for authentication
   const mockCredentials = {
@@ -58,38 +66,33 @@ const LoginForm = () => {
     
     if (!validateForm()) return;
     
-    setIsLoading(true);
-    
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Only send email and password (backend doesn't need rememberMe)
+      const result = await login({
+        email: formData.email,
+        password: formData.password
+      }).unwrap();
       
-      // Check credentials
-      const isStudent = formData?.email === mockCredentials?.student?.email && 
-                       formData?.password === mockCredentials?.student?.password;
-      const isEmployer = formData?.email === mockCredentials?.employer?.email && 
-                        formData?.password === mockCredentials?.employer?.password;
+      console.log('Login successful:', result);
       
-      if (isStudent) {
-        navigate('/student-dashboard');
-      } else if (isEmployer) {
-        navigate('/employer-dashboard');
-      } else {
-        setErrors({
-          general: 'Invalid credentials. Use student@pathfinders.gh/student123 or employer@pathfinders.gh/employer123'
-        });
-      }
-    } catch (error) {
-      setErrors({ general: 'Login failed. Please try again.' });
-    } finally {
-      setIsLoading(false);
+      dispatch(setCredentials(result));
+      console.log('Credentials dispatched');
+      
+      // Redirect immediately after successful login
+      const from = location.state?.from?.pathname || '/student-dashboard';
+      console.log('Navigating to:', from);
+      navigate(from, { replace: true });
+    } catch (err) {
+      console.error('Login error:', err);
+      setErrors({
+        general: err.data?.message || 'Login failed. Please try again.'
+      });
     }
   };
 
   return (
     <div className="w-full max-w-md mx-auto">
       <div className="bg-card border border-border rounded-xl p-8 shadow-sm">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center w-16 h-16 bg-primary rounded-full mx-auto mb-4">
             <Icon name="Compass" size={32} color="white" />
@@ -146,12 +149,11 @@ const LoginForm = () => {
             <Button
               variant="link"
               size="sm"
-              onClick={() => {/* Handle forgot password */}}
+              onClick={() => navigate('/forgot-password')}
               className="text-primary hover:text-primary/80 p-0 h-auto"
             >
               Forgot password?
-            </Button>
-          </div>
+            </Button>          </div>
 
           <Button
             type="submit"
